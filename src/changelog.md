@@ -3,6 +3,13 @@
 Tous les changements notables du projet Sceptiques du Québec seront documentés dans ce fichier.
 
 
+## [2026-06-04]
+
+### Ajouts
+
+- Tableau de pointage: 3 classements accessibles par onglets (Meilleur score, Top scores, Plus actifs).
+
+
 ## [2026-05-23]
 
 ### Ajouts

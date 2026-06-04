@@ -9,11 +9,38 @@ const GAME_URL = 'https://sceptiquesduquebec.com/brick-breaqueer/scripts/brickbr
 const API_URL  = 'https://script.google.com/macros/s/AKfycbwH5V6n3wWoteG9czsAczmHKWykcDuGX8pqjtM_2uf6n1ykDKI2Os3QrB-A2kgnTNqz/exec';
 
 
+const LEADERBOARDS = [
+	{
+		id: 'grouped',
+		label: 'Meilleur score',
+		rowsKey: 'topGrouped',
+		columns: ['#', 'utilisateur', 'niveau', 'score'],
+		cellFn: (row, i) => [i + 1, row[2], row[3], row[4].toLocaleString()]
+	},
+	{
+		id: 'scores',
+		label: 'Top scores',
+		rowsKey: 'topScores',
+		columns: ['#', 'utilisateur', 'niveau', 'score'],
+		cellFn: (row, i) => [i + 1, row[2], row[3], row[4].toLocaleString()]
+	},
+	{
+		id: 'actifs',
+		label: 'Plus actifs',
+		rowsKey: 'topActive',
+		columns: ['#', 'utilisateur', '', 'parties'],
+		cellFn: (row, i) => [i + 1, row.username, '', row.parties]
+	}
+];
+
+
 ({
 
 	modalscore: null,
 	changelog:  null,
 	fingerprint: null,
+	activeLeaderboard: 0,
+	leaderboardData: null,
 
 
 	init: async function() {
@@ -67,26 +94,83 @@ const API_URL  = 'https://script.google.com/macros/s/AKfycbwH5V6n3wWoteG9czsAczm
 
 	loadLeaderboard: async function(data) {
 		data = data || await this.getLeaderboard();
+		this.leaderboardData = data || null;
+		this.renderLeaderboardTabs();
+		this.renderLeaderboardTable();
+	},
 
-		const container = document.querySelector('.leaderboard > div > div');
+
+	renderLeaderboardTabs: function() {
+		const tabsEl = document.querySelector('.leaderboard-tabs');
+		tabsEl.replaceChildren();
+		LEADERBOARDS.forEach((board, i) => {
+			const isActive = i === this.activeLeaderboard;
+			const btn = create('button', 'leaderboard-tab' + (isActive ? ' active' : ''), board.label, {
+				type: 'button',
+				role: 'tab',
+				id: `tab-${board.id}`,
+				'aria-selected': isActive ? 'true' : 'false',
+				'aria-controls': 'leaderboard-panel',
+				tabindex: isActive ? '0' : '-1'
+			});
+			btn.addEventListener('click', () => {
+				this.activeLeaderboard = i;
+				this.renderLeaderboardTabs();
+				this.renderLeaderboardTable();
+			});
+			btn.addEventListener('keydown', (evt) => {
+				let next = null;
+				if (evt.key === 'ArrowRight') next = (i + 1) % LEADERBOARDS.length;
+				else if (evt.key === 'ArrowLeft') next = (i - 1 + LEADERBOARDS.length) % LEADERBOARDS.length;
+				if (next !== null) {
+					evt.preventDefault();
+					this.activeLeaderboard = next;
+					this.renderLeaderboardTabs();
+					this.renderLeaderboardTable();
+					document.querySelector(`#tab-${LEADERBOARDS[next].id}`)?.focus();
+				}
+			});
+			tabsEl.appendChild(btn);
+		});
+	},
+
+
+	renderLeaderboardTable: function() {
+		const panelEl = document.querySelector('.leaderboard-panel');
+		const board = LEADERBOARDS[this.activeLeaderboard];
+
+		panelEl.setAttribute('aria-labelledby', `tab-${board.id}`);
+
+		if (!this.leaderboardData) {
+			panelEl.classList.add('loaded');
+			panelEl.replaceChildren(create('p', 'leaderboard-empty', 'Impossible de charger le classement.'));
+			return;
+		}
+
+		const rows = this.leaderboardData[board.rowsKey];
+
+		if (!rows || rows.length === 0) {
+			panelEl.classList.add('loaded');
+			const msg = create('p', 'leaderboard-empty', 'Aucun résultat pour ce classement.');
+			panelEl.replaceChildren(msg);
+			return;
+		}
 
 		const table = create('table');
+		const colgroup = create('colgroup');
+		['rank', 'user', 'metric', 'value'].forEach(cls => colgroup.create('col', cls));
+		table.appendChild(colgroup);
 		const header = table.create('tr');
-		header.create('td', null, '#');
-		header.create('td', null, 'utilisateur');
-		header.create('td', null, 'niveau');
-		header.create('td', null, 'score');
+		board.columns.forEach(col => header.create('td', null, col));
 
-		data.topGrouped.forEach((entry, i) => {
-			const row = table.create('tr');
-			row.create('td', null, i + 1);
-			row.create('td', null, entry[2]);
-			row.create('td', null, entry[3]);
-			row.create('td', null, entry[4].toLocaleString());
+		rows.forEach((row, i) => {
+			const cells = board.cellFn(row, i);
+			const tr = table.create('tr');
+			cells.forEach(cell => tr.create('td', null, cell));
 		});
 
-		container.classList.add('loaded');
-		container.replaceChildren(table);
+		panelEl.classList.add('loaded');
+		panelEl.replaceChildren(table);
 	},
 
 
